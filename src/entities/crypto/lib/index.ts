@@ -1,14 +1,17 @@
 import type { Cipher, CryptoMethod } from '../model/types'
+import { GammaCipher } from './gamma/gamma'
 import { SubstitutionCipher } from './substitution/substitution'
 import { TranspositionCipher } from './transposition/transposition'
 
 export { SubstitutionCipher } from './substitution/substitution'
 export { TranspositionCipher } from './transposition/transposition'
+export { GammaCipher } from './gamma/gamma'
 export { cleanAndValidateText } from './common'
 
 export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
     'Подстановка': new SubstitutionCipher(),
     'Перестановка': new TranspositionCipher(),
+    'Гаммирование': new GammaCipher(),
 }
 
 export const getCipher = (method: CryptoMethod): Cipher => {
