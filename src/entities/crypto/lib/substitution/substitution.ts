@@ -108,16 +108,5 @@ export class SubstitutionCipher {
 
         return plainText;
     }
-
-    /**
-     * Возвращает таблицу подстановки в виде массива для удобного вывода на UI
-     */
-    public getTableData() {
-        const table: { from: string; to: string }[] = [];
-        this.encryptMap.forEach((value, key) => {
-            table.push({ from: key, to: value });
-        });
-        return table;
-    }
 }
 
