@@ -1,0 +1,23 @@
+.history {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+}
+
+.historyItem {
+    width: 100%;
+    display: flex;
+    gap: 16px;
+
+    padding: 2px 0;
+}
+
+p {
+    font-size: 12px;
+    text-align: start;
+    margin: 0
+}
+
+span {
+    opacity: 0.7;
+}

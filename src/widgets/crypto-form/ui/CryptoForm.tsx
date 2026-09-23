@@ -1,4 +1,4 @@
-import { useCryptoStore, MethodSelect, ResultDisplay } from '@/entities/crypto'
+import { useCryptoStore, MethodSelect, ResultDisplay, CryptoHistory } from '@/entities/crypto'
 import { ActionButton } from '@/features/encrypt-decrypt-text'
 import { TextArea } from '@/shared/ui'
 import styles from './CryptoForm.module.css'
@@ -20,6 +20,8 @@ export const CryptoForm = () => {
 
                 <ResultDisplay />
             </div>
+
+            <CryptoHistory />
         </div>
     )
 }
