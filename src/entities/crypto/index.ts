@@ -1,5 +1,6 @@
 export { useCryptoStore, CRYPTO_METHODS } from './model/store'
-export type { CryptoMethod, CryptoState, HistoryItem } from './model/types'
+export type { CryptoMethod, CryptoState, HistoryItem, Cipher } from './model/types'
+export { cleanText, encryptText, decryptText, getCipher, CIPHERS_MAP } from './lib'
 export { MethodSelect } from './ui/MethodSelect'
 export { ResultDisplay } from './ui/ResultDisplay'
 export { CryptoHistory } from './ui/CryptoHistory'

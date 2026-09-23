@@ -1,25 +1,35 @@
-import type { CryptoMethod } from '../model/types'
-import type { SubstitutionCipher } from './substitution/substitution';
-export { SubstitutionCipher } from './substitution/substitution';
+import type { Cipher, CryptoMethod } from '../model/types'
+import { SubstitutionCipher } from './substitution/substitution'
+import { TranspositionCipher } from './transposition/transposition'
 
-// Функция зашифрования
-export const encryptText = (text: string, method: CryptoMethod, key: string, cipher: SubstitutionCipher): string => {
-    console.log("encrypt", text, method, key)
-    switch (method) {
-        case "Подстановка":
-            return cipher.encrypt(text)
-        default:
-            return "encrypt"
-    }
+export { SubstitutionCipher } from './substitution/substitution'
+export { TranspositionCipher } from './transposition/transposition'
+export { cleanAndValidateText } from './common'
+
+export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
+    'Подстановка': new SubstitutionCipher(),
+    'Перестановка': new TranspositionCipher(),
 }
 
-// Функция расшифрования
-export const decryptText = (text: string, method: CryptoMethod, key: string, cipher: SubstitutionCipher): string => {
-    console.log("decrypt", text, method, key)
-    switch (method) {
-        case "Подстановка":
-            return cipher.decrypt(text)
-        default:
-            return "decrypt"
+export const getCipher = (method: CryptoMethod): Cipher => {
+    const cipher = CIPHERS_MAP[method]
+    if (!cipher) {
+        throw new Error(`Неизвестный метод шифрования: ${method}`)
     }
+    return cipher
+}
+
+export const cleanText = (text: string, method: CryptoMethod): string => {
+    const cipher = getCipher(method)
+    return cipher.cleanText(text)
+}
+
+export const encryptText = (text: string, method: CryptoMethod, key?: string): string => {
+    const cipher = getCipher(method)
+    return cipher.encrypt(text, key)
+}
+
+export const decryptText = (text: string, method: CryptoMethod, key?: string): string => {
+    const cipher = getCipher(method)
+    return cipher.decrypt(text, key)
 }

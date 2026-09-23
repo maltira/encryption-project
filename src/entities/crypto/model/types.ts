@@ -1,7 +1,12 @@
-import type { SubstitutionCipher } from "../lib"
-
 export const CRYPTO_METHODS = ['Подстановка', 'Перестановка'] as const
 export type CryptoMethod = typeof CRYPTO_METHODS[number]
+
+export interface Cipher {
+    alphabet: string
+    cleanText: (sourceText: string) => string
+    encrypt: (plainText: string, key?: string) => string
+    decrypt: (cipherText: string, key?: string) => string
+}
 
 export interface HistoryItem {
     id: string
@@ -18,7 +23,6 @@ export interface CryptoState {
     sourceText: string
     resultText: string
     cryptoKey: string
-    cipherInstance: SubstitutionCipher
     history: HistoryItem[]
 
     // Действия (Actions)

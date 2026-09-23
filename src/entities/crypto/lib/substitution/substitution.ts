@@ -1,7 +1,10 @@
 
+import type { Cipher } from '../../model/types'
+import { cleanAndValidateText } from '../common'
+
 // 1-й метод: Подстановка
 
-export class SubstitutionCipher {
+export class SubstitutionCipher implements Cipher {
     public alphabet: string;
     public blockSize: number;
     public padSymbol: string;
@@ -9,7 +12,7 @@ export class SubstitutionCipher {
     public encryptMap: Map<string, string>;
     public decryptMap: Map<string, string>;
 
-    constructor(alphabet: string, blockSize: number, padSymbol: string = "0",) {
+    constructor(alphabet: string = '012', blockSize: number = 3, padSymbol: string = "0",) {
         this.alphabet = alphabet;
         this.blockSize = blockSize;
         this.padSymbol = padSymbol;
@@ -18,6 +21,11 @@ export class SubstitutionCipher {
 
         this.generateTables();
     }
+
+    public cleanText(sourceText: string): string {
+        return cleanAndValidateText(sourceText, this.alphabet)
+    }
+
 
     // Рекурсивно генерирует все возможные комбинации символов алфавита длины m
     private generateAllCombinations(
