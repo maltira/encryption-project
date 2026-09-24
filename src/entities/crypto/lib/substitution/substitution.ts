@@ -44,7 +44,7 @@ export class SubstitutionCipher implements Cipher {
     /**
      * Создает случайную биекцию (взаимно однозначную таблицу подстановки)
      */
-    private generateTables(key?: number): void {
+    private generateTables(key?: number | string): void {
         const alphabetRunes = Array.from(this.alphabet);
         const combinations: string[] = [];
 
@@ -53,9 +53,10 @@ export class SubstitutionCipher implements Cipher {
         // Копируем массив для перемешивания
         const shuffled = [...combinations];
 
+        const numKey = key !== undefined && key !== '' ? Number(key) : undefined;
         // Перемешивание Фишера-Йетса (аналог rand.Shuffle в Go)
         for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(key ? key % (i + 1) : Math.random() * (i + 1));
+            const j = Math.floor(numKey !== undefined && !isNaN(numKey) ? numKey % (i + 1) : Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
 
@@ -68,10 +69,8 @@ export class SubstitutionCipher implements Cipher {
         }
     }
 
-    /**
-     * Зашифровать открытый текст
-     */
-    public encrypt(plainText: string, key?: number): string {
+    // Зашифровать открытый текст
+    public encrypt(plainText: string, key?: number | string): string {
         this.generateTables(key);
         const runes = Array.from(plainText);
 
@@ -97,7 +96,8 @@ export class SubstitutionCipher implements Cipher {
     }
 
     // Расшифровать шифрограмму
-    public decrypt(cipherText: string): string {
+    public decrypt(cipherText: string, key?: number | string): string {
+        this.generateTables(key);
         const runes = Array.from(cipherText);
         let plainText = '';
 

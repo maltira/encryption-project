@@ -12,7 +12,11 @@ export const useCryptoStore = create<CryptoState>((set, get) => ({
     history: [],
 
     // Простые экшены изменения полей
-    setMethod: (method) => set({ method, resultText: '' }), // Очищаем результат при смене метода
+    setMethod: (method) => set({
+        method,
+        resultText: '',
+        cryptoKey: method === 'DES (ECB)' ? '' : 32
+    }), // Очищаем результат и выставляем ключ при смене метода
     setSourceText: (sourceText) => set({ sourceText }),
     setCryptoKey: (cryptoKey) => set({ cryptoKey, resultText: '' }),
 

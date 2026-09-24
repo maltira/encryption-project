@@ -1,4 +1,5 @@
 import type { Cipher, CryptoMethod } from '../model/types'
+import { DESCipher } from './des-ecb/des'
 import { GammaCipher } from './gamma/gamma'
 import { SubstitutionCipher } from './substitution/substitution'
 import { TranspositionCipher } from './transposition/transposition'
@@ -6,12 +7,14 @@ import { TranspositionCipher } from './transposition/transposition'
 export { SubstitutionCipher } from './substitution/substitution'
 export { TranspositionCipher } from './transposition/transposition'
 export { GammaCipher } from './gamma/gamma'
+export { DESCipher } from './des-ecb/des'
 export { cleanAndValidateText } from './common'
 
 export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
     'Подстановка': new SubstitutionCipher(),
     'Перестановка': new TranspositionCipher(),
     'Гаммирование': new GammaCipher(),
+    'DES (ECB)': new DESCipher(),
 }
 
 export const getCipher = (method: CryptoMethod): Cipher => {
@@ -27,12 +30,12 @@ export const cleanText = (text: string, method: CryptoMethod): string => {
     return cipher.cleanText(text)
 }
 
-export const encryptText = (text: string, method: CryptoMethod, key?: number): string => {
+export const encryptText = (text: string, method: CryptoMethod, key?: string | number): string => {
     const cipher = getCipher(method)
     return cipher.encrypt(text, key)
 }
 
-export const decryptText = (text: string, method: CryptoMethod, key?: number): string => {
+export const decryptText = (text: string, method: CryptoMethod, key?: string | number): string => {
     const cipher = getCipher(method)
     return cipher.decrypt(text, key)
 }

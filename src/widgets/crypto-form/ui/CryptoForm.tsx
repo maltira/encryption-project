@@ -12,8 +12,27 @@ export const CryptoForm = () => {
             <MethodSelect />
 
             {
-                method !== 'Гаммирование' &&
-                <input type='number' placeholder='Введите ключ' value={cryptoKey} onChange={(e) => setCryptoKey(+e.target.value)} />
+                method !== 'Гаммирование' && (
+                    method === 'DES (ECB)' ? (
+                        <input
+                            type='text'
+                            placeholder='Введите 16-значный HEX-ключ (допустимые значения: 0-9, A-F)'
+                            value={cryptoKey}
+                            maxLength={16}
+                            onChange={(e) => {
+                                const hexOnly = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 16).toUpperCase()
+                                setCryptoKey(hexOnly)
+                            }}
+                        />
+                    ) : (
+                        <input
+                            type='number'
+                            placeholder='Введите ключ'
+                            value={cryptoKey}
+                            onChange={(e) => setCryptoKey(+e.target.value)}
+                        />
+                    )
+                )
             }
 
             <div className={styles.innerBlock}>

@@ -28,16 +28,17 @@ export class TranspositionCipher implements Cipher {
 
 
     // генерация случайной перестановки индексов [0, ..., blockSize - 1] (Fisher-Yates)
-    private generateRandomKey(cryptoKey?: number): number[] {
+    private generateRandomKey(cryptoKey?: number | string): number[] {
+        const numKey = cryptoKey !== undefined && cryptoKey !== '' ? Number(cryptoKey) : undefined;
         const key = Array.from({ length: this.blockSize }, (_, i) => i);
         for (let i = key.length - 1; i > 0; i--) {
-            const j = Math.floor(cryptoKey ? cryptoKey % (i + 1) : Math.random() * (i + 1));
+            const j = Math.floor(numKey !== undefined && !isNaN(numKey) ? numKey % (i + 1) : Math.random() * (i + 1));
             [key[i], key[j]] = [key[j], key[i]];
         }
         return key;
     }
 
-    public encrypt(plainText: string, cryptoKey?: number): string {
+    public encrypt(plainText: string, cryptoKey?: number | string): string {
         this.key = this.generateRandomKey(cryptoKey);
         const chars = Array.from(plainText);
 
@@ -64,7 +65,8 @@ export class TranspositionCipher implements Cipher {
         return cipherText;
     }
 
-    public decrypt(cipherText: string): string {
+    public decrypt(cipherText: string, cryptoKey?: number | string): string {
+        this.key = this.generateRandomKey(cryptoKey);
         const chars = Array.from(cipherText);
 
         if (chars.length % this.blockSize !== 0) {
