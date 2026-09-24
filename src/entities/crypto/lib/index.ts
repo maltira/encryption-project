@@ -27,12 +27,12 @@ export const cleanText = (text: string, method: CryptoMethod): string => {
     return cipher.cleanText(text)
 }
 
-export const encryptText = (text: string, method: CryptoMethod, key?: string): string => {
+export const encryptText = (text: string, method: CryptoMethod, key?: number): string => {
     const cipher = getCipher(method)
     return cipher.encrypt(text, key)
 }
 
-export const decryptText = (text: string, method: CryptoMethod, key?: string): string => {
+export const decryptText = (text: string, method: CryptoMethod, key?: number): string => {
     const cipher = getCipher(method)
     return cipher.decrypt(text, key)
 }

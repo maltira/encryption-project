@@ -8,13 +8,13 @@ export const useCryptoStore = create<CryptoState>((set, get) => ({
     method: 'Подстановка',
     sourceText: '',
     resultText: '',
-    cryptoKey: '',
+    cryptoKey: 32,
     history: [],
 
     // Простые экшены изменения полей
     setMethod: (method) => set({ method, resultText: '' }), // Очищаем результат при смене метода
     setSourceText: (sourceText) => set({ sourceText }),
-    setCryptoKey: (cryptoKey) => set({ cryptoKey }),
+    setCryptoKey: (cryptoKey) => set({ cryptoKey, resultText: '' }),
 
     // Экшен зашифрования
     handleEncrypt: () => {
@@ -28,6 +28,7 @@ export const useCryptoStore = create<CryptoState>((set, get) => ({
                 timestamp: new Date().toLocaleTimeString(),
                 actionType: 'Шифрование',
                 method,
+                key: cryptoKey,
                 input: sourceText,
                 output: encrypted,
             }
@@ -50,6 +51,7 @@ export const useCryptoStore = create<CryptoState>((set, get) => ({
                 timestamp: new Date().toLocaleTimeString(),
                 actionType: 'Дешифрование',
                 method,
+                key: cryptoKey,
                 input: sourceText,
                 output: decrypted,
             }

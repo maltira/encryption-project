@@ -4,11 +4,17 @@ import { TextArea } from '@/shared/ui'
 import styles from './CryptoForm.module.css'
 
 export const CryptoForm = () => {
-    const { sourceText, setSourceText } = useCryptoStore()
+    const { method, sourceText, setSourceText, cryptoKey, setCryptoKey } = useCryptoStore()
 
     return (
         <div className={styles.form}>
+
             <MethodSelect />
+
+            {
+                method !== 'Гаммирование' &&
+                <input type='number' placeholder='Введите ключ' value={cryptoKey} onChange={(e) => setCryptoKey(+e.target.value)} />
+            }
 
             <div className={styles.innerBlock}>
                 <TextArea value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder='Исходный текст' />

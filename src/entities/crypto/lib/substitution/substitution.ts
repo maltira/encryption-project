@@ -18,8 +18,6 @@ export class SubstitutionCipher implements Cipher {
         this.padSymbol = padSymbol;
         this.encryptMap = new Map<string, string>();
         this.decryptMap = new Map<string, string>();
-
-        this.generateTables();
     }
 
     public cleanText(sourceText: string): string {
@@ -46,7 +44,7 @@ export class SubstitutionCipher implements Cipher {
     /**
      * Создает случайную биекцию (взаимно однозначную таблицу подстановки)
      */
-    private generateTables(): void {
+    private generateTables(key?: number): void {
         const alphabetRunes = Array.from(this.alphabet);
         const combinations: string[] = [];
 
@@ -57,7 +55,7 @@ export class SubstitutionCipher implements Cipher {
 
         // Перемешивание Фишера-Йетса (аналог rand.Shuffle в Go)
         for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = Math.floor(key ? key % (i + 1) : Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
 
@@ -73,7 +71,8 @@ export class SubstitutionCipher implements Cipher {
     /**
      * Зашифровать открытый текст
      */
-    public encrypt(plainText: string): string {
+    public encrypt(plainText: string, key?: number): string {
+        this.generateTables(key);
         const runes = Array.from(plainText);
 
         // Дополнение текста до кратности размеру блока
@@ -97,9 +96,7 @@ export class SubstitutionCipher implements Cipher {
         return cipherText;
     }
 
-    /**
-     * Расшифровать шифрограмму
-     */
+    // Расшифровать шифрограмму
     public decrypt(cipherText: string): string {
         const runes = Array.from(cipherText);
         let plainText = '';

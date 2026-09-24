@@ -19,7 +19,7 @@ export class TranspositionCipher implements Cipher {
         this.alphabet = alphabet;
         this.blockSize = blockSize;
         this.padSymbol = padSymbol;
-        this.key = this.generateRandomKey();
+        this.key = []
     }
 
     public cleanText(sourceText: string): string {
@@ -28,16 +28,17 @@ export class TranspositionCipher implements Cipher {
 
 
     // генерация случайной перестановки индексов [0, ..., blockSize - 1] (Fisher-Yates)
-    private generateRandomKey(): number[] {
+    private generateRandomKey(cryptoKey?: number): number[] {
         const key = Array.from({ length: this.blockSize }, (_, i) => i);
         for (let i = key.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = Math.floor(cryptoKey ? cryptoKey % (i + 1) : Math.random() * (i + 1));
             [key[i], key[j]] = [key[j], key[i]];
         }
         return key;
     }
 
-    public encrypt(plainText: string): string {
+    public encrypt(plainText: string, cryptoKey?: number): string {
+        this.key = this.generateRandomKey(cryptoKey);
         const chars = Array.from(plainText);
 
         // дополнение (padding) до кратности размеру блока
