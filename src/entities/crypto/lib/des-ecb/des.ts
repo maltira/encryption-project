@@ -289,8 +289,13 @@ export class DESCipher implements Cipher {
     // Дешифрование
     public decrypt(cipherHex: string, key?: number | string): string {
         const cleanHex = cipherHex.replace(/\s+/g, "");
+
+        // 1 байт = 2 символа HEX (по 4 бита), следовательно 1 блок текста (8 байт) 
+        // превращается в 16 HEX-символов - таких блоков по 8 байт должно быть в кол-ве 
+        // кратном 8 (так как мы делали padding до кратного), или же другими словами кол-во
+        // HEX-символов должно быть кратно 16 (потому что на вход подаются они)
         if (cleanHex.length % 16 !== 0) {
-            throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам");
+            throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам (64 битам)");
         }
 
         const cipherBytes: number[] = [];

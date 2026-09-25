@@ -17,3 +17,9 @@
     gap: 20px;
     justify-content: center;
 }
+
+.inputForm {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
