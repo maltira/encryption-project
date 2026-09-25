@@ -134,7 +134,7 @@ export class DESCipher implements Cipher {
         return sourceText;
     }
 
-    public static parseHexKey(key?: number | string): number[] {
+    public parseHexKey(key?: number | string): number[] {
         if (key === undefined || key === null || String(key).trim() === '') {
             throw new Error("Необходимо ввести 16-значный HEX-ключ");
         }
@@ -151,102 +151,118 @@ export class DESCipher implements Cipher {
         return bytes;
     }
 
-    private static bytesToBits(bytes: number[]): number[] {
-        const bits: number[] = [];
+    private bytesToBits(bytes: number[]): number[] {
+        const bits = new Array(bytes.length * 8);
+        let index = 0;
         for (const byte of bytes) {
             for (let i = 7; i >= 0; i--) {
-                bits.push((byte >> i) & 1);
+                bits[index++] = (byte >> i) & 1;
             }
         }
         return bits;
     }
 
-    private static bitsToBytes(bits: number[]): number[] {
-        const bytes: number[] = [];
+    private bitsToBytes(bits: number[]): number[] {
+        const bytes = new Array(bits.length / 8)
+        let index = 0;
         for (let i = 0; i < bits.length; i += 8) {
             let byte = 0;
             for (let j = 0; j < 8; j++) {
                 byte = (byte << 1) | bits[i + j];
             }
-            bytes.push(byte);
+            bytes[index++] = (byte);
         }
         return bytes;
     }
 
-    private static permute(input: number[], table: number[]): number[] {
+    private permute(input: number[], table: number[]): number[] {
         return table.map(pos => input[pos - 1]);
     }
 
-    private static leftShift(bits: number[], n: number): number[] {
+    private leftShift(bits: number[], n: number): number[] {
         return bits.slice(n).concat(bits.slice(0, n));
     }
 
-    private static createSubKeys(keyBytes: number[]): number[][] {
-        const keyBits = DESCipher.bytesToBits(keyBytes);
-        const permutedKey = DESCipher.permute(keyBits, PC1);
+    private createSubKeys(keyBytes: number[]): number[][] {
+        const keyBits = this.bytesToBits(keyBytes); // 8-байтовый массив в 64-битный
+        const permutedKey = this.permute(keyBits, PC1); // 56 бит перемешиваются по таблице PC-1
 
-        let c = permutedKey.slice(0, 28);
-        let d = permutedKey.slice(28, 56);
+        let C = permutedKey.slice(0, 28);
+        let D = permutedKey.slice(28, 56);
 
         const subKeys: number[][] = [];
         for (let i = 0; i < 16; i++) {
-            c = DESCipher.leftShift(c, SHIFTS[i]);
-            d = DESCipher.leftShift(d, SHIFTS[i]);
-            const cd = c.concat(d);
-            subKeys.push(DESCipher.permute(cd, PC2));
+            // половины сдвигаются влево (на 1 бит в раундах 1,2,9,16 и на 2 бита во всех ост.)
+            C = this.leftShift(C, SHIFTS[i]);
+            D = this.leftShift(D, SHIFTS[i]);
+
+            // полученная пара объединяется в 56-битный блок, который пропускается через PC-2
+            const CD = C.concat(D);
+            subKeys.push(this.permute(CD, PC2));
+            // на выходе получается раундовый ключ K из 48 бит
         }
         return subKeys;
     }
 
     private getSubKeys(key?: number | string): number[][] {
-        const keyBytes = DESCipher.parseHexKey(key);
-        return DESCipher.createSubKeys(keyBytes);
+        const keyBytes = this.parseHexKey(key);
+        return this.createSubKeys(keyBytes);
     }
 
-    private f(r: number[], subKey: number[]): number[] {
-        const expandedR = DESCipher.permute(r, E);
-        const xored = expandedR.map((bit, idx) => bit ^ subKey[idx]);
+    private f(R: number[], subKey: number[]): number[] {
+        const expandedR = this.permute(R, E); // расширяем нашу правую сторону с 32 бит до 48
+        const xor = expandedR.map((bit, idx) => bit ^ subKey[idx]); // складываем по модулю 2 каждый бит R с соответствующим раундным ключом
         const sOutputBits: number[] = [];
 
+        // S-блоки: делим исходные 48 бит на 8 частей по 6 бит - каждая отправляется в свой S-блок (2-мерная матрица), 
+        // чтобы получить из 48 бит обратно 32
         for (let i = 0; i < 8; i++) {
-            const chunk = xored.slice(i * 6, (i + 1) * 6);
-            const row = (chunk[0] << 1) | chunk[5];
-            const col = (chunk[1] << 3) | (chunk[2] << 2) | (chunk[3] << 1) | chunk[4];
-            const val = S_BOXES[i][row][col];
-            for (let b = 3; b >= 0; b--) {
+            const chunk = xor.slice(i * 6, (i + 1) * 6); // нарезка на 6-битные блоки
+
+            const row = (chunk[0] << 1) | chunk[5]; // вычисление индекса (1-й и последний биты) строки (от 0 до 3: 00, 01, 10, 11)
+            const col = (chunk[1] << 3) | (chunk[2] << 2) | (chunk[3] << 1) | chunk[4]; // вычисление индекса столбца (средние 4 бита)
+
+            const val = S_BOXES[i][row][col]; // находим число на пересечении (от 0 до 15), которое можно описать ровно 4 битами
+            for (let b = 3; b >= 0; b--) {  // превращаем число в массив из 4 бит
                 sOutputBits.push((val >> b) & 1);
             }
         }
+        // на выходе в sOutputBits получается массив из 32 бит (8 блоков по 4 бита)
 
-        return DESCipher.permute(sOutputBits, P);
+        return this.permute(sOutputBits, P); // перемешиваем (P-box)
     }
 
-    public processBlock(blockBytes: number[], isDecrypt: boolean = false, subKeys?: number[][]): number[] {
-        const keys = subKeys ?? this.getSubKeys();
-        const bits = DESCipher.bytesToBits(blockBytes);
-        const ipBits = DESCipher.permute(bits, IP);
+    private processBlock(blockBytes: number[], isDecrypt: boolean = false, subKeys: number[][]): number[] {
+        const bits = this.bytesToBits(blockBytes); // 8-байтовый блок превращается в 64-битовый блок
+        const ipBits = this.permute(bits, IP); // перестановка данных (изначальная)
 
+        // делим блок на 2 части
         let L = ipBits.slice(0, 32);
         let R = ipBits.slice(32, 64);
 
-        for (let i = 0; i < 16; i++) {
-            const key = isDecrypt ? keys[15 - i] : keys[i];
+        for (let i = 0; i < 16; i++) { // 16 раундов сети Фейстеля
+            const key = isDecrypt ? subKeys[15 - i] : subKeys[i]; // если это дешифрование, то берем ключи в обратном порядке
+
+            // новая L = R_(i-1)
             const nextL = R;
-            const fResult = this.f(R, key);
-            const nextR = L.map((bit, idx) => bit ^ fResult[idx]);
+
+            // а новую R высчитываем по формуле R = L_(i-1) xor f(R_(i-1), K)
+            const fResult = this.f(R, key); // f(R_(i-1), K)
+            const nextR = L.map((bit, idx) => bit ^ fResult[idx]); // каждый бит L складываем по модулю 2 с битом f
 
             L = nextL;
             R = nextR;
         }
+        // получаем блоки L_16 и R_16
 
-        const preOutput = R.concat(L);
-        const finalBits = DESCipher.permute(preOutput, IP_INV);
-        return DESCipher.bitsToBytes(finalBits);
+        const preOutput = R.concat(L); // объединяем их, поменяв местами - сначала R потом L
+        const finalBits = this.permute(preOutput, IP_INV); // прогоняем через перестановку, обратную начальной (IP)
+
+        return this.bitsToBytes(finalBits); // исходный 64-битный массив превращаем в 8-байтовый
     }
 
     // Шифрование текста
     public encrypt(plainText: string, key?: number | string): string {
-        const subKeys = this.getSubKeys(key);
         const encoder = new TextEncoder();
         const data = Array.from(encoder.encode(plainText));
 
@@ -256,7 +272,9 @@ export class DESCipher implements Cipher {
             data.push(padLen);
         }
 
+        // каждый блок обрабатываем независимо (ecb)
         const cipherBytes: number[] = [];
+        const subKeys = this.getSubKeys(key);
         for (let i = 0; i < data.length; i += 8) {
             const block = data.slice(i, i + 8);
             cipherBytes.push(...this.processBlock(block, false, subKeys));
@@ -270,10 +288,9 @@ export class DESCipher implements Cipher {
 
     // Дешифрование
     public decrypt(cipherHex: string, key?: number | string): string {
-        const subKeys = this.getSubKeys(key);
         const cleanHex = cipherHex.replace(/\s+/g, "");
         if (cleanHex.length % 16 !== 0) {
-            throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам (64 битам).");
+            throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам");
         }
 
         const cipherBytes: number[] = [];
@@ -282,9 +299,10 @@ export class DESCipher implements Cipher {
         }
 
         const plainBytes: number[] = [];
+        const subKeys = this.getSubKeys(key);
         for (let i = 0; i < cipherBytes.length; i += 8) {
             const block = cipherBytes.slice(i, i + 8);
-            plainBytes.push(...this.processBlock(block, true, subKeys));
+            plainBytes.push(...this.processBlock(block, true, subKeys)); // флаг true - дешифрование
         }
 
         // Снятие дополнения PKCS#7
@@ -302,7 +320,7 @@ export class DESCipher implements Cipher {
         }
 
         if (!validPadding) {
-            throw new Error("Неверный ключ или поврежденное дополнение (PKCS#7 padding).");
+            throw new Error("Неверный ключ или поврежденное дополнение (PKCS#7 padding)");
         }
 
         const trimmedBytes = plainBytes.slice(0, plainBytes.length - padLen);
@@ -311,7 +329,7 @@ export class DESCipher implements Cipher {
         try {
             return decoder.decode(new Uint8Array(trimmedBytes));
         } catch {
-            throw new Error("Не удалось декодировать текст: неверный ключ шифрования.");
+            throw new Error("Не удалось декодировать текст: неверный ключ шифрования");
         }
     }
 }
