@@ -148,7 +148,7 @@ export class DESCipher implements Cipher {
         for (let i = 0; i < 16; i += 2) {
             bytes.push(parseInt(clean.slice(i, i + 2), 16));
         }
-        return bytes;
+        return this.bytesToBits(bytes); // 8-байтовый массив в 64-битный
     }
 
     private bytesToBits(bytes: number[]): number[] {
@@ -179,34 +179,30 @@ export class DESCipher implements Cipher {
         return table.map(pos => input[pos - 1]);
     }
 
-    private leftShift(bits: number[], n: number): number[] {
-        return bits.slice(n).concat(bits.slice(0, n));
-    }
-
-    private createSubKeys(keyBytes: number[]): number[][] {
-        const keyBits = this.bytesToBits(keyBytes); // 8-байтовый массив в 64-битный
+    public createSubKeys(key?: number | string): number[][] {
+        const keyBits = this.parseHexKey(key);
         const permutedKey = this.permute(keyBits, PC1); // 56 бит перемешиваются по таблице PC-1
 
         let C = permutedKey.slice(0, 28);
         let D = permutedKey.slice(28, 56);
 
+        // из-за слабых ключей C и D могут состоять только из 1 или только из 0
+        // что в итоге приводит к тому что все раундовые ключи будут одинаковыми K1=K2=...=K16, что делает шифр уязвимым
+
         const subKeys: number[][] = [];
         for (let i = 0; i < 16; i++) {
-            // половины сдвигаются влево (на 1 бит в раундах 1,2,9,16 и на 2 бита во всех ост.)
-            C = this.leftShift(C, SHIFTS[i]);
-            D = this.leftShift(D, SHIFTS[i]);
+            // циклический сдвиг влево (на 1 бит в раундах 1,2,9,16 и на 2 бита во всех ост.)
+            const shift = SHIFTS[i];
+            C = C.slice(shift).concat(C.slice(0, shift));
+            D = D.slice(shift).concat(D.slice(0, shift));
 
             // полученная пара объединяется в 56-битный блок, который пропускается через PC-2
             const CD = C.concat(D);
             subKeys.push(this.permute(CD, PC2));
             // на выходе получается раундовый ключ K из 48 бит
         }
-        return subKeys;
-    }
 
-    private getSubKeys(key?: number | string): number[][] {
-        const keyBytes = this.parseHexKey(key);
-        return this.createSubKeys(keyBytes);
+        return subKeys;
     }
 
     private f(R: number[], subKey: number[]): number[] {
@@ -232,7 +228,7 @@ export class DESCipher implements Cipher {
         return this.permute(sOutputBits, P); // перемешиваем (P-box)
     }
 
-    private processBlock(blockBytes: number[], isDecrypt: boolean = false, subKeys: number[][]): number[] {
+    public processBlock(blockBytes: number[], isDecrypt: boolean = false, subKeys: number[][]): number[] {
         const bits = this.bytesToBits(blockBytes); // 8-байтовый блок превращается в 64-битовый блок
         const ipBits = this.permute(bits, IP); // перестановка данных (изначальная)
 
@@ -272,9 +268,11 @@ export class DESCipher implements Cipher {
             data.push(padLen);
         }
 
+        // раундовые ключи
+        const subKeys = this.createSubKeys(key);
+
         // каждый блок обрабатываем независимо (ecb)
         const cipherBytes: number[] = [];
-        const subKeys = this.getSubKeys(key);
         for (let i = 0; i < data.length; i += 8) {
             const block = data.slice(i, i + 8);
             cipherBytes.push(...this.processBlock(block, false, subKeys));
@@ -304,7 +302,7 @@ export class DESCipher implements Cipher {
         }
 
         const plainBytes: number[] = [];
-        const subKeys = this.getSubKeys(key);
+        const subKeys = this.createSubKeys(key);
         for (let i = 0; i < cipherBytes.length; i += 8) {
             const block = cipherBytes.slice(i, i + 8);
             plainBytes.push(...this.processBlock(block, true, subKeys)); // флаг true - дешифрование
@@ -333,8 +331,64 @@ export class DESCipher implements Cipher {
         const decoder = new TextDecoder("utf-8", { fatal: true });
         try {
             return decoder.decode(new Uint8Array(trimmedBytes));
-        } catch {
-            throw new Error("Не удалось декодировать текст: неверный ключ шифрования");
+        } catch (e) {
+            throw new Error("Не удалось декодировать текст: неверный ключ шифрования (" + e + ")");
         }
     }
 }
+
+// ==========================================
+// ПРИМЕР ИСПОЛЬЗОВАНИЯ СЛАБЫХ КЛЮЧЕЙ
+// ==========================================
+
+// const des = new DESCipher();
+// const weakKey = "0101010101010101";
+
+// // 1. берем ровно 8 байт (64 бита) сырых данных
+// const OT = "WeakKey!";
+// const inputBytes = Array.from(new TextEncoder().encode(OT));
+
+// // 2. получаем раундовые ключи
+// const subKeys = des.createSubKeys(weakKey);
+
+// // 3. первое шифрование блока: C = DES(K, OT)
+// const cipherBytes1 = des.processBlock(inputBytes, false, subKeys);
+
+// // 4. второе шифрование ТОГО ЖЕ блока: C2 = DES(K, DES(K, OT))
+// const cipherBytes2 = des.processBlock(cipherBytes1, false, subKeys);
+
+// // 5. проверяем байт-в-байт
+// const recoveredText = new TextDecoder().decode(new Uint8Array(cipherBytes2));
+
+// console.log("Исходный текст:              ", OT);
+// console.log("Текст после двух шифрований: ", recoveredText);
+// console.log("DES(K, DES(K, OT)) === OT:     ", recoveredText === OT);
+
+// ==========================================
+// ПРИМЕР ИСПОЛЬЗОВАНИЯ ЧАСТИЧНО-СЛАБЫХ КЛЮЧЕЙ
+// ==========================================
+
+// const des = new DESCipher();
+// const weakKey1 = "01FE01FE01FE01FE";
+// const weakKey2 = "FE01FE01FE01FE01";
+
+// // 1. берем ровно 8 байт (64 бита) сырых данных
+// const OT = "WeakKey!";
+// const inputBytes = Array.from(new TextEncoder().encode(OT));
+
+// // 2. получаем раундовые ключи
+// const subKeys1 = des.createSubKeys(weakKey1);
+// const subKeys2 = des.createSubKeys(weakKey2);
+
+// // 3. первое шифрование блока: C = DES(K2, OT)
+// const cipherBytes1 = des.processBlock(inputBytes, false, subKeys2);
+
+// // 4. второе шифрование ТОГО ЖЕ блока: C2 = DES(K1, DES(K2, OT))
+// const cipherBytes2 = des.processBlock(cipherBytes1, false, subKeys1);
+
+// // 5. проверяем байт-в-байт
+// const recoveredText = new TextDecoder().decode(new Uint8Array(cipherBytes2));
+
+// console.log("Исходный текст:              ", OT);
+// console.log("Текст после двух шифрований: ", recoveredText);
+// console.log("DES(K1, DES(K2, OT)) === OT:     ", recoveredText === OT);
