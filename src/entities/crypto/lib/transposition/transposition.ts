@@ -1,62 +1,47 @@
-
 import type { Cipher } from '../../model/types'
-import { cleanAndValidateText } from '../common'
 
 export class TranspositionCipher implements Cipher {
     public alphabet: string;
     public blockSize: number;
     public padSymbol: string;
 
-    // key[j] содержит индекс символа (0-based) в исходном блоке,
-    // который встает на позицию j шифртекста
-    private key: number[];
+    private K: number[];
 
-    constructor(
-        alphabet: string = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя",
-        blockSize: number = 16,
-        padSymbol: string = "_",
-    ) {
-        this.alphabet = alphabet;
-        this.blockSize = blockSize;
-        this.padSymbol = padSymbol;
-        this.key = []
+    constructor() {
+        this.alphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
+        this.blockSize = 16;
+        this.padSymbol = "_";
+        this.K = Array.from({ length: this.blockSize }, (_, i) => i);
     }
 
-    public cleanText(sourceText: string): string {
-        return cleanAndValidateText(sourceText, this.alphabet)
-    }
-
-
-    // генерация случайной перестановки индексов [0, ..., blockSize - 1] (Fisher-Yates)
-    private generateRandomKey(cryptoKey?: number | string): number[] {
-        const numKey = cryptoKey !== undefined && cryptoKey !== '' ? Number(cryptoKey) : undefined;
-        const key = Array.from({ length: this.blockSize }, (_, i) => i);
-        for (let i = key.length - 1; i > 0; i--) {
-            const j = Math.floor(numKey !== undefined && !isNaN(numKey) ? numKey % (i + 1) : Math.random() * (i + 1));
-            [key[i], key[j]] = [key[j], key[i]];
+    // генерация случайной перестановки индексов
+    private generateRandomPositions(cryptoKey: number) {
+        for (let i = this.blockSize - 1; i > 0; i--) {
+            const j = cryptoKey % (i + 1);
+            [this.K[i], this.K[j]] = [this.K[j], this.K[i]];
         }
-        return key;
     }
 
-    public encrypt(plainText: string, cryptoKey?: number | string): string {
-        this.key = this.generateRandomKey(cryptoKey);
-        const chars = Array.from(plainText);
+    // Шифрование
+    public encrypt(plainText: string, cryptoKey: number | string): string {
+        this.generateRandomPositions(+cryptoKey);
 
-        // дополнение (padding) до кратности размеру блока
-        while (chars.length % this.blockSize !== 0) {
-            chars.push(this.padSymbol);
-        }
+        // дополнение до кратности размеру блока
+        const text = plainText.padEnd(
+            Math.ceil(plainText.length / this.blockSize) * this.blockSize,
+            this.padSymbol
+        )
 
         let cipherText = "";
 
-        // Обработка блоков по blockSize символов
-        for (let i = 0; i < chars.length; i += this.blockSize) {
-            const block = chars.slice(i, i + this.blockSize);
+        // итерируемся блоками длины blockSize
+        for (let i = 0; i < text.length; i += this.blockSize) {
+            const block = text.slice(i, i + this.blockSize);
             const encryptedBlock: string[] = new Array(this.blockSize);
 
             for (let j = 0; j < this.blockSize; j++) {
-                // На позицию j встает символ с индекса key[j] из исходного блока
-                encryptedBlock[j] = block[this.key[j]];
+                // на позицию j встает символ с индекса K[j]
+                encryptedBlock[j] = block[this.K[j]];
             }
 
             cipherText += encryptedBlock.join("");
@@ -65,23 +50,23 @@ export class TranspositionCipher implements Cipher {
         return cipherText;
     }
 
-    public decrypt(cipherText: string, cryptoKey?: number | string): string {
-        this.key = this.generateRandomKey(cryptoKey);
-        const chars = Array.from(cipherText);
-
-        if (chars.length % this.blockSize !== 0) {
+    // Дешифрование
+    public decrypt(cipherText: string, cryptoKey: number | string): string {
+        if (cipherText.length % this.blockSize !== 0) {
             throw new Error(`Длина шифртекста должна быть кратна ${this.blockSize}`);
         }
 
+        this.generateRandomPositions(+cryptoKey);
         let plainText = "";
 
-        for (let i = 0; i < chars.length; i += this.blockSize) {
-            const block = chars.slice(i, i + this.blockSize);
+        for (let i = 0; i < cipherText.length; i += this.blockSize) {
+            const block = cipherText.slice(i, i + this.blockSize);
             const decryptedBlock: string[] = new Array(this.blockSize);
 
             for (let j = 0; j < this.blockSize; j++) {
-                // Обратное преобразование: возвращаем символ на его исходный индекс key[j]
-                decryptedBlock[this.key[j]] = block[j];
+                // обратное преобразование: 
+                // возвращаем символ на его исходный индекс K[j]
+                decryptedBlock[this.K[j]] = block[j];
             }
 
             plainText += decryptedBlock.join("");

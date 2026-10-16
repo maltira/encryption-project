@@ -8,7 +8,7 @@ export { SubstitutionCipher } from './substitution/substitution'
 export { TranspositionCipher } from './transposition/transposition'
 export { GammaCipher } from './gamma/gamma'
 export { DESCipher } from './des-ecb/des'
-export { cleanAndValidateText } from './common'
+export { filterByAlphabet, isTextInAlphabet } from './common'
 
 export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
     'Подстановка': new SubstitutionCipher(),
@@ -17,25 +17,12 @@ export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
     'DES (ECB)': new DESCipher(),
 }
 
-export const getCipher = (method: CryptoMethod): Cipher => {
+export const encryptText = (text: string, method: CryptoMethod, key: string | number): string => {
     const cipher = CIPHERS_MAP[method]
-    if (!cipher) {
-        throw new Error(`Неизвестный метод шифрования: ${method}`)
-    }
-    return cipher
-}
-
-export const cleanText = (text: string, method: CryptoMethod): string => {
-    const cipher = getCipher(method)
-    return cipher.cleanText(text)
-}
-
-export const encryptText = (text: string, method: CryptoMethod, key?: string | number): string => {
-    const cipher = getCipher(method)
     return cipher.encrypt(text, key)
 }
 
-export const decryptText = (text: string, method: CryptoMethod, key?: string | number): string => {
-    const cipher = getCipher(method)
+export const decryptText = (text: string, method: CryptoMethod, key: string | number): string => {
+    const cipher = CIPHERS_MAP[method]
     return cipher.decrypt(text, key)
 }

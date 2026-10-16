@@ -1,10 +1,22 @@
-import { useCryptoStore, MethodSelect, ResultDisplay, CryptoHistory } from '@/entities/crypto'
+import { useCryptoStore, MethodSelect, ResultDisplay, CryptoHistory, CIPHERS_MAP, filterByAlphabet, isTextInAlphabet } from '@/entities/crypto'
 import { ActionButton } from '@/features/encrypt-decrypt-text'
 import { TextArea } from '@/shared/ui'
+import { KeyInput } from './KeyInput'
 import styles from './CryptoForm.module.css'
 
 export const CryptoForm = () => {
-    const { method, sourceText, setSourceText, cryptoKey, setCryptoKey } = useCryptoStore()
+    const { method, sourceText, setSourceText, cryptoKey } = useCryptoStore()
+    const cipher = CIPHERS_MAP[method]
+
+    const alphabet = cipher.alphabet || ''
+    const inputAlphabet = alphabet && cipher.padSymbol && !alphabet.includes(cipher.padSymbol)
+        ? alphabet + cipher.padSymbol
+        : alphabet
+
+    const isKeyValid = method === 'DES (ECB)'
+        ? /^[0-9a-fA-F]{16}$/.test(String(cryptoKey))
+        : method === 'Гаммирование' || (Number.isInteger(cryptoKey) && Number(cryptoKey) >= 0)
+    const isActionDisabled = !sourceText || !isTextInAlphabet(sourceText, inputAlphabet) || !isKeyValid
 
     return (
         <div className={styles.form}>
@@ -12,41 +24,22 @@ export const CryptoForm = () => {
             <div className={styles.inputForm}>
                 <p>Выберите метод</p>
                 <MethodSelect />
+                {method !== 'DES (ECB)' && method !== 'Гаммирование' && <p>Алфавит: {alphabet}</p>}
+                {method === 'Гаммирование' && <p>Алфавит: Расширенная таблица ASCII (коды символов от `0` до `255`, всего 256 символов)</p>}
             </div>
 
-            {method !== 'Гаммирование' && (
-                <div className={styles.inputForm}>
-                    <p>Введите ключ {method === 'DES (ECB)' && `(осталось: ${16 - String(cryptoKey).length})`}</p>
-                    {
-                        method === 'DES (ECB)' ? (
-                            <input
-                                type='text'
-                                placeholder='Введите 16-значный HEX-ключ (допустимые значения: 0-9, A-F)'
-                                value={cryptoKey}
-                                maxLength={16}
-                                onChange={(e) => {
-                                    const hexOnly = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 16).toUpperCase()
-                                    setCryptoKey(hexOnly)
-                                }}
-                            />
-                        ) : (
-                            <input
-                                type='number'
-                                placeholder='Введите ключ'
-                                value={cryptoKey}
-                                onChange={(e) => setCryptoKey(+e.target.value)}
-                            />
-                        )
-                    }
-                </div>
-            )}
+            <KeyInput />
 
             <div className={styles.innerBlock}>
-                <TextArea value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder='Исходный текст' />
+                <TextArea
+                    value={sourceText}
+                    onChange={(e) => setSourceText(filterByAlphabet(e.target.value, inputAlphabet))}
+                    placeholder='Исходный текст'
+                />
 
                 <div className={styles.buttons}>
-                    <ActionButton type='encrypt' />
-                    <ActionButton type='decrypt' />
+                    <ActionButton type='encrypt' disabled={isActionDisabled} />
+                    <ActionButton type='decrypt' disabled={isActionDisabled} />
                 </div>
 
                 <ResultDisplay />

@@ -1,12 +1,25 @@
-export function cleanAndValidateText(sourceText: string, alphabet: string): string {
-    const cleanStr = sourceText.replace(/\s+/g, '')
-    const chars = Array.from(cleanStr)
 
+// удаляет из текста символы, не входящие в алфавит
+export function filterByAlphabet(sourceText: string, alphabet: string): string {
+    if (!alphabet) return sourceText
     const alphabetSet = new Set(Array.from(alphabet))
-    for (const char of chars) {
-        if (!alphabetSet.has(char)) {
-            throw new Error(`Символ '${char}' не входит в заданный алфавит`)
+    let res = ''
+    for (const char of sourceText) {
+        if (alphabetSet.has(char)) {
+            res += char
         }
     }
-    return chars.join('')
+    return res
+}
+
+// проверяет, что каждый символ текста входит в алфавит
+export function isTextInAlphabet(sourceText: string, alphabet: string): boolean {
+    if (!alphabet) return true
+    const alphabetSet = new Set(Array.from(alphabet))
+    for (const char of sourceText) {
+        if (!alphabetSet.has(char)) {
+            return false
+        }
+    }
+    return true
 }

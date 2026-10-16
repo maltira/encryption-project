@@ -3,9 +3,9 @@ export type CryptoMethod = typeof CRYPTO_METHODS[number]
 
 export interface Cipher {
     alphabet?: string
-    cleanText: (sourceText: string) => string
-    encrypt: (plainText: string, key?: string | number) => string
-    decrypt: (cipherText: string, key?: string | number) => string
+    padSymbol?: string
+    encrypt: (plainText: string, key: string | number) => string
+    decrypt: (cipherText: string, key: string | number) => string
 }
 
 export interface HistoryItem {
@@ -19,19 +19,16 @@ export interface HistoryItem {
 }
 
 export interface CryptoState {
-    // Данные (State)
     method: CryptoMethod
     sourceText: string
     resultText: string
     cryptoKey: string | number
     history: HistoryItem[]
 
-    // Действия (Actions)
     setMethod: (method: CryptoMethod) => void
     setSourceText: (text: string) => void
     setCryptoKey: (key: string | number) => void
 
-    // Бизнес-логика
     handleEncrypt: () => void
     handleDecrypt: () => void
 }

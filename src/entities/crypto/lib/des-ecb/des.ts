@@ -1,7 +1,7 @@
 import type { Cipher } from '../../model/types'
 
 // ==========================================
-// 1. ТАБЛИЦЫ АЛГОРИТМА DES
+// 1. КОНСТАНТЫ АЛГОРИТМА
 // ==========================================
 
 const IP: number[] = [
@@ -130,25 +130,12 @@ export class DESCipher implements Cipher {
         this.alphabet = '';
     }
 
-    public cleanText(sourceText: string): string {
-        return sourceText;
-    }
-
-    public parseHexKey(key?: number | string): number[] {
-        if (key === undefined || key === null || String(key).trim() === '') {
-            throw new Error("Необходимо ввести 16-значный HEX-ключ");
-        }
-
-        const clean = String(key).replace(/\s+/g, "");
-        if (!/^[0-9a-fA-F]{16}$/.test(clean)) {
-            throw new Error(`Ключ должен состоять из 16 HEX-символов (получено: ${clean.length}).`);
-        }
-
+    public parseHexKey(key: string): number[] {
         const bytes: number[] = [];
         for (let i = 0; i < 16; i += 2) {
-            bytes.push(parseInt(clean.slice(i, i + 2), 16));
+            bytes.push(parseInt(key.slice(i, i + 2), 16));
         }
-        return this.bytesToBits(bytes); // 8-байтовый массив в 64-битный
+        return this.bytesToBits(bytes); // 8-байтовый массив -> 64-битный
     }
 
     private bytesToBits(bytes: number[]): number[] {
@@ -179,15 +166,12 @@ export class DESCipher implements Cipher {
         return table.map(pos => input[pos - 1]);
     }
 
-    public createSubKeys(key?: number | string): number[][] {
+    public createSubKeys(key: string): number[][] {
         const keyBits = this.parseHexKey(key);
         const permutedKey = this.permute(keyBits, PC1); // 56 бит перемешиваются по таблице PC-1
 
         let C = permutedKey.slice(0, 28);
         let D = permutedKey.slice(28, 56);
-
-        // из-за слабых ключей C и D могут состоять только из 1 или только из 0
-        // что в итоге приводит к тому что все раундовые ключи будут одинаковыми K1=K2=...=K16, что делает шифр уязвимым
 
         const subKeys: number[][] = [];
         for (let i = 0; i < 16; i++) {
@@ -198,8 +182,8 @@ export class DESCipher implements Cipher {
 
             // полученная пара объединяется в 56-битный блок, который пропускается через PC-2
             const CD = C.concat(D);
-            subKeys.push(this.permute(CD, PC2));
             // на выходе получается раундовый ключ K из 48 бит
+            subKeys.push(this.permute(CD, PC2));
         }
 
         return subKeys;
@@ -257,19 +241,19 @@ export class DESCipher implements Cipher {
         return this.bitsToBytes(finalBits); // исходный 64-битный массив превращаем в 8-байтовый
     }
 
-    // Шифрование текста
-    public encrypt(plainText: string, key?: number | string): string {
+    // Шифрование
+    public encrypt(plainText: string, key: number | string): string {
         const encoder = new TextEncoder();
         const data = Array.from(encoder.encode(plainText));
 
-        // Дополнение до кратности 8 байтам
+        // дополнение до кратности 8 байтам
         const padLen = 8 - (data.length % 8);
         for (let i = 0; i < padLen; i++) {
             data.push(padLen);
         }
 
         // раундовые ключи
-        const subKeys = this.createSubKeys(key);
+        const subKeys = this.createSubKeys(String(key));
 
         // каждый блок обрабатываем независимо (ecb)
         const cipherBytes: number[] = [];
@@ -285,24 +269,22 @@ export class DESCipher implements Cipher {
     }
 
     // Дешифрование
-    public decrypt(cipherHex: string, key?: number | string): string {
-        const cleanHex = cipherHex.replace(/\s+/g, "");
-
+    public decrypt(cipherHex: string, key: number | string): string {
         // 1 байт = 2 символа HEX (по 4 бита), следовательно 1 блок текста (8 байт) 
         // превращается в 16 HEX-символов - таких блоков по 8 байт должно быть в кол-ве 
         // кратном 8 (так как мы делали padding до кратного), или же другими словами кол-во
         // HEX-символов должно быть кратно 16 (потому что на вход подаются они)
-        if (cleanHex.length % 16 !== 0) {
+        if (cipherHex.length % 16 !== 0) {
             throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам (64 битам)");
         }
 
         const cipherBytes: number[] = [];
-        for (let i = 0; i < cleanHex.length; i += 2) {
-            cipherBytes.push(parseInt(cleanHex.slice(i, i + 2), 16));
+        for (let i = 0; i < cipherHex.length; i += 2) {
+            cipherBytes.push(parseInt(cipherHex.slice(i, i + 2), 16));
         }
 
         const plainBytes: number[] = [];
-        const subKeys = this.createSubKeys(key);
+        const subKeys = this.createSubKeys(String(key));
         for (let i = 0; i < cipherBytes.length; i += 8) {
             const block = cipherBytes.slice(i, i + 8);
             plainBytes.push(...this.processBlock(block, true, subKeys)); // флаг true - дешифрование
