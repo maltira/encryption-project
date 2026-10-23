@@ -1,4 +1,4 @@
-import { useCryptoStore, MethodSelect, ResultDisplay, CryptoHistory, CIPHERS_MAP, filterByAlphabet, isTextInAlphabet } from '@/entities/crypto'
+import { useCryptoStore, MethodSelect, ResultDisplay, CryptoHistory, CIPHERS_MAP, isTextInAlphabet } from '@/entities/crypto'
 import { ActionButton } from '@/features/encrypt-decrypt-text'
 import { TextArea } from '@/shared/ui'
 import { KeyInput } from './KeyInput'
@@ -33,7 +33,7 @@ export const CryptoForm = () => {
             <div className={styles.innerBlock}>
                 <TextArea
                     value={sourceText}
-                    onChange={(e) => setSourceText(filterByAlphabet(e.target.value, inputAlphabet))}
+                    onChange={(e) => setSourceText(e.target.value)}
                     placeholder='Исходный текст'
                 />
 

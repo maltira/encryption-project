@@ -8,7 +8,7 @@ export { SubstitutionCipher } from './substitution/substitution'
 export { TranspositionCipher } from './transposition/transposition'
 export { GammaCipher } from './gamma/gamma'
 export { DESCipher } from './des-ecb/des'
-export { filterByAlphabet, isTextInAlphabet } from './common'
+export { isTextInAlphabet } from './common'
 
 export const CIPHERS_MAP: Record<CryptoMethod, Cipher> = {
     'Подстановка': new SubstitutionCipher(),

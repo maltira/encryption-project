@@ -126,8 +126,23 @@ const PC2: number[] = [
 export class DESCipher implements Cipher {
     public alphabet: string;
 
+    private lastKey: string | null;
+    private subKeys: number[][];
+
     constructor() {
         this.alphabet = '';
+        this.lastKey = null;
+        this.subKeys = [];
+    }
+
+    // раундовые ключи для заданного ключа
+    private getSubKeys(key: string): number[][] {
+        const hex = String(key);
+        if (hex !== this.lastKey) {
+            this.subKeys = this.createSubKeys(hex);
+            this.lastKey = hex;
+        }
+        return this.subKeys;
     }
 
     public parseHexKey(key: string): number[] {
@@ -253,7 +268,7 @@ export class DESCipher implements Cipher {
         }
 
         // раундовые ключи
-        const subKeys = this.createSubKeys(String(key));
+        const subKeys = this.getSubKeys(String(key));
 
         // каждый блок обрабатываем независимо (ecb)
         const cipherBytes: number[] = [];
@@ -284,7 +299,7 @@ export class DESCipher implements Cipher {
         }
 
         const plainBytes: number[] = [];
-        const subKeys = this.createSubKeys(String(key));
+        const subKeys = this.getSubKeys(String(key));
         for (let i = 0; i < cipherBytes.length; i += 8) {
             const block = cipherBytes.slice(i, i + 8);
             plainBytes.push(...this.processBlock(block, true, subKeys)); // флаг true - дешифрование

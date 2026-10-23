@@ -8,12 +8,20 @@ export class SubstitutionCipher implements Cipher {
     public encryptMap: Map<string, string>;
     public decryptMap: Map<string, string>;
 
+    private combinations: string[];
+    private lastKey: number | null;
+
     constructor() {
         this.alphabet = '012';
         this.blockSize = 3;
         this.padSymbol = "0";
         this.encryptMap = new Map<string, string>();
         this.decryptMap = new Map<string, string>();
+
+        // комбинации не зависят от ключа, поэтому строим их один раз
+        this.combinations = [];
+        this.generateAllCombinations('', this.combinations);
+        this.lastKey = null;
     }
 
     // рекурсивно генерирует все возможные комбинации символов алфавита длины m
@@ -29,9 +37,10 @@ export class SubstitutionCipher implements Cipher {
 
     // создает случайную биекцию (взаимно однозначную таблицу подстановки)
     private generateTables(key: number): void {
-        const combinations: string[] = [];
-        this.generateAllCombinations('', combinations);
+        // кеш последнего ключа: таблицы для него уже построены
+        if (key === this.lastKey) return;
 
+        const combinations = this.combinations;
         const shuffled = [...combinations];
 
         for (let i = shuffled.length - 1; i > 0; i--) {
@@ -46,46 +55,50 @@ export class SubstitutionCipher implements Cipher {
             this.encryptMap.set(orig, sub);
             this.decryptMap.set(sub, orig);
         }
+
+        this.lastKey = key;
     }
 
     // Зашифровать
     public encrypt(plainText: string, key: number | string): string {
         this.generateTables(+key);
+        const blockSize = this.blockSize
 
-        // дополнение текста до кратности размеру блока
-        const text = plainText.padEnd(
-            Math.ceil(plainText.length / this.blockSize) * this.blockSize,
-            this.padSymbol
-        );
-
-        let cipherText = '';
+        // кол-во блоков текста
+        const countBlocks = Math.ceil(plainText.length / blockSize);
+        const cipherBlocksArray = new Array<string>(countBlocks)
 
         // итерируемся блоками длины blockSize
-        for (let i = 0; i < text.length; i += this.blockSize) {
-            const block = text.slice(i, i + this.blockSize);
-            const sub = this.encryptMap.get(block);
-            cipherText += sub;
+        for (let i = 0; i < countBlocks; i++) {
+            let block = plainText.slice(i * blockSize, (i + 1) * blockSize);
+            if (i === countBlocks - 1 && block.length % blockSize) {
+                block = block.padEnd(blockSize, this.padSymbol)
+            }
+
+            cipherBlocksArray[i] = this.encryptMap.get(block) ?? "";
         }
 
-        return cipherText;
+        return cipherBlocksArray.join('');
     }
 
     // Дешифровать
     public decrypt(cipherText: string, key: number | string): string {
-        if (cipherText.length % this.blockSize !== 0) {
-            throw new Error(`Длина шифртекста должна быть кратна ${this.blockSize}`);
+        const blockSize = this.blockSize
+        if (cipherText.length % blockSize) {
+            throw new Error(`Длина шифртекста должна быть кратна ${blockSize}`);
         }
 
         this.generateTables(+key);
-        let plainText = '';
 
-        for (let i = 0; i < cipherText.length; i += this.blockSize) {
-            const block = cipherText.slice(i, i + this.blockSize);
-            const sub = this.decryptMap.get(block);
-            plainText += sub;
+        // кол-во блоков текста
+        const countBlocks = cipherText.length / blockSize;
+        const plainBlocksArray = new Array<string>(countBlocks)
+
+        for (let i = 0; i < countBlocks; i++) {
+            let block = cipherText.slice(i * blockSize, (i + 1) * blockSize);
+            plainBlocksArray[i] = this.decryptMap.get(block) ?? "";
         }
 
-        return plainText;
+        return plainBlocksArray.join('');
     }
 }
-

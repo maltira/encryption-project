@@ -44,7 +44,7 @@ npm run dev
     - types.ts — базовые интерфейсы (Cipher, CryptoState, HistoryItem) и типы доступных методов;
     - store.ts — централизованное хранилище состояния приложения на базе библиотеки Zustand (useCryptoStore);
 * **lib/ (Криптографический слой / Бизнес-логика):**
-    - common.ts — вспомогательные функции фильтрации и проверки входного текста по алфавиту (filterByAlphabet, isTextInAlphabet);
+    - common.ts — вспомогательные функции фильтрации и проверки входного текста по алфавиту (isTextInAlphabet);
     - substitution/ (substitution.ts) — блочный шифр подстановки (SubstitutionCipher);
     - transposition/ (transposition.ts) — блочный шифр перестановки (TranspositionCipher);
     - gamma/ (gamma.ts) — шифрование гаммированием (GammaCipher);
