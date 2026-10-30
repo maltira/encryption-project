@@ -31,27 +31,29 @@ export class GammaCipher implements Cipher {
         return gamma;
     }
 
-    // наложение гаммы на текст: 1 - шифрование, -1 - дешифрование
-    private applyGamma(text: string, direction: 1 | -1): string {
-        const cipherBlocksArray = new Array<string>(text.length)
+    // Шифрование
+    public encrypt(plainText: string): string {
+        const cipherBlocksArray = new Array<string>(plainText.length)
 
-        for (let i = 0; i < text.length; i++) {
+        for (let i = 0; i < plainText.length; i++) {
             // C_i = (x_i + k_i) % B
-            // P_i = (y_i - k_i + B) % B
-            const charCode = (text.charCodeAt(i) + direction * this.gamma[i % this.B] + this.B) % this.B;
+            const charCode = (plainText.charCodeAt(i) + this.gamma[i % this.B]) % this.B;
             cipherBlocksArray[i] = String.fromCharCode(charCode);
         }
 
         return cipherBlocksArray.join('');
     }
 
-    // Шифрование
-    public encrypt(plainText: string): string {
-        return this.applyGamma(plainText, 1)
-    }
-
     // Дешифрование
     public decrypt(cipherText: string): string {
-        return this.applyGamma(cipherText, -1)
+        const plainBlocksArray = new Array<string>(cipherText.length)
+
+        for (let i = 0; i < cipherText.length; i++) {
+            // P_i = (y_i - k_i + B) % B
+            const charCode = (cipherText.charCodeAt(i) - this.gamma[i % this.B] + this.B) % this.B;
+            plainBlocksArray[i] = String.fromCharCode(charCode);
+        }
+
+        return plainBlocksArray.join('');
     }
 }

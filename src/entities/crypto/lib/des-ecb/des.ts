@@ -146,37 +146,37 @@ export class DESCipher implements Cipher {
     }
 
     public parseHexKey(key: string): number[] {
-        const bytes: number[] = [];
-        for (let i = 0; i < 16; i += 2) {
-            bytes.push(parseInt(key.slice(i, i + 2), 16));
+        const bytes = new Uint8Array(8);
+        for (let i = 0; i < 8; i++) {
+            bytes[i] = parseInt(key.slice(i * 2, i * 2 + 2), 16);
         }
         return this.bytesToBits(bytes); // 8-байтовый массив -> 64-битный
     }
 
-    private bytesToBits(bytes: number[]): number[] {
+    private bytesToBits(bytes: Uint8Array): number[] {
         const bits = new Array(bytes.length * 8);
         let index = 0;
-        for (const byte of bytes) {
+        for (let k = 0; k < bytes.length; k++) {
             for (let i = 7; i >= 0; i--) {
-                bits[index++] = (byte >> i) & 1;
+                bits[index++] = (bytes[k] >> i) & 1;
             }
         }
         return bits;
     }
 
-    private bitsToBytes(bits: number[]): number[] {
-        const bytes = new Array(bits.length / 8)
-        let index = 0;
+    private bitsToBytes(bits: number[]): Uint8Array {
+        const bytes = new Uint8Array(bits.length / 8);
         for (let i = 0; i < bits.length; i += 8) {
             let byte = 0;
             for (let j = 0; j < 8; j++) {
                 byte = (byte << 1) | bits[i + j];
             }
-            bytes[index++] = (byte);
+            bytes[i / 8] = byte;
         }
         return bytes;
     }
 
+    // перестановка по таблице: на позицию i встает элемент входа с номером table[i]
     private permute(input: number[], table: number[]): number[] {
         return table.map(pos => input[pos - 1]);
     }
@@ -227,7 +227,7 @@ export class DESCipher implements Cipher {
         return this.permute(sOutputBits, P); // перемешиваем (P-box)
     }
 
-    public processBlock(blockBytes: number[], isDecrypt: boolean = false, subKeys: number[][]): number[] {
+    public processBlock(blockBytes: Uint8Array, isDecrypt: boolean = false, subKeys: number[][]): Uint8Array {
         const bits = this.bytesToBits(blockBytes); // 8-байтовый блок превращается в 64-битовый блок
         const ipBits = this.permute(bits, IP); // перестановка данных (изначальная)
 
@@ -235,8 +235,8 @@ export class DESCipher implements Cipher {
         let L = ipBits.slice(0, 32);
         let R = ipBits.slice(32, 64);
 
-        for (let i = 0; i < 16; i++) { // 16 раундов сети Фейстеля
-            const key = isDecrypt ? subKeys[15 - i] : subKeys[i]; // если это дешифрование, то берем ключи в обратном порядке
+        for (let round = 0; round < 16; round++) { // 16 раундов сети Фейстеля
+            const key = subKeys[isDecrypt ? 15 - round : round]; // если это дешифрование, то берем ключи в обратном порядке
 
             // новая L = R_(i-1)
             const nextL = R;
@@ -253,19 +253,18 @@ export class DESCipher implements Cipher {
         const preOutput = R.concat(L); // объединяем их, поменяв местами - сначала R потом L
         const finalBits = this.permute(preOutput, IP_INV); // прогоняем через перестановку, обратную начальной (IP)
 
-        return this.bitsToBytes(finalBits); // исходный 64-битный массив превращаем в 8-байтовый
+        return this.bitsToBytes(finalBits);
     }
 
     // Шифрование
     public encrypt(plainText: string, key: number | string): string {
-        const encoder = new TextEncoder();
-        const data = Array.from(encoder.encode(plainText));
+        const encoded = new TextEncoder().encode(plainText);
 
-        // дополнение до кратности 8 байтам
-        const padLen = 8 - (data.length % 8);
-        for (let i = 0; i < padLen; i++) {
-            data.push(padLen);
-        }
+        // дополнение (PKCS#7) до кратности 8 байтам: сразу выделяем буфер нужной длины
+        const padLen = 8 - (encoded.length % 8);
+        const data = new Uint8Array(encoded.length + padLen);
+        data.set(encoded);
+        data.fill(padLen, encoded.length);
 
         // раундовые ключи
         const subKeys = this.getSubKeys(String(key));
@@ -273,7 +272,7 @@ export class DESCipher implements Cipher {
         // каждый блок обрабатываем независимо (ecb)
         const cipherBytes: number[] = [];
         for (let i = 0; i < data.length; i += 8) {
-            const block = data.slice(i, i + 8);
+            const block = data.subarray(i, i + 8);
             cipherBytes.push(...this.processBlock(block, false, subKeys));
         }
 
@@ -285,23 +284,22 @@ export class DESCipher implements Cipher {
 
     // Дешифрование
     public decrypt(cipherHex: string, key: number | string): string {
-        // 1 байт = 2 символа HEX (по 4 бита), следовательно 1 блок текста (8 байт) 
-        // превращается в 16 HEX-символов - таких блоков по 8 байт должно быть в кол-ве 
-        // кратном 8 (так как мы делали padding до кратного), или же другими словами кол-во
-        // HEX-символов должно быть кратно 16 (потому что на вход подаются они)
+        // 1 байт = 2 HEX-символа (по 4 бита), поэтому блок DES (8 байт) занимает 16 символов.
+        // Шифртекст всегда состоит из целого числа блоков (padding до кратности 8),
+        // значит длина HEX-строки должна делиться на 16
         if (cipherHex.length % 16 !== 0) {
             throw new Error("Длина HEX-шифртекста должна быть кратна 16 символам (64 битам)");
         }
 
-        const cipherBytes: number[] = [];
-        for (let i = 0; i < cipherHex.length; i += 2) {
-            cipherBytes.push(parseInt(cipherHex.slice(i, i + 2), 16));
+        const cipherBytes = new Uint8Array(cipherHex.length / 2);
+        for (let i = 0; i < cipherBytes.length; i++) {
+            cipherBytes[i] = parseInt(cipherHex.slice(i * 2, i * 2 + 2), 16);
         }
 
         const plainBytes: number[] = [];
         const subKeys = this.getSubKeys(String(key));
         for (let i = 0; i < cipherBytes.length; i += 8) {
-            const block = cipherBytes.slice(i, i + 8);
+            const block = cipherBytes.subarray(i, i + 8);
             plainBytes.push(...this.processBlock(block, true, subKeys)); // флаг true - дешифрование
         }
 
@@ -343,7 +341,7 @@ export class DESCipher implements Cipher {
 
 // // 1. берем ровно 8 байт (64 бита) сырых данных
 // const OT = "WeakKey!";
-// const inputBytes = Array.from(new TextEncoder().encode(OT));
+// const inputBytes = new TextEncoder().encode(OT);
 
 // // 2. получаем раундовые ключи
 // const subKeys = des.createSubKeys(weakKey);
@@ -371,7 +369,7 @@ export class DESCipher implements Cipher {
 
 // // 1. берем ровно 8 байт (64 бита) сырых данных
 // const OT = "WeakKey!";
-// const inputBytes = Array.from(new TextEncoder().encode(OT));
+// const inputBytes = new TextEncoder().encode(OT);
 
 // // 2. получаем раундовые ключи
 // const subKeys1 = des.createSubKeys(weakKey1);
