@@ -5,7 +5,7 @@ import { KeyInput } from './KeyInput'
 import styles from './CryptoForm.module.css'
 
 export const CryptoForm = () => {
-    const { method, sourceText, setSourceText, cryptoKey } = useCryptoStore()
+    const { method, sourceText, setSourceText, cryptoKey, gammaParams } = useCryptoStore()
     const cipher = CIPHERS_MAP[method]
 
     const alphabet = cipher.alphabet || ''
@@ -13,10 +13,26 @@ export const CryptoForm = () => {
         ? alphabet + cipher.padSymbol
         : alphabet
 
+    const isDesKeyValid = /^[0-9a-fA-F]{16}$/.test(String(cryptoKey))
+    const isNumericKeyValid = Number.isInteger(cryptoKey) && Number(cryptoKey) >= 0
+
     const isKeyValid = method === 'DES (ECB)'
-        ? /^[0-9a-fA-F]{16}$/.test(String(cryptoKey))
-        : method === 'Гаммирование' || (Number.isInteger(cryptoKey) && Number(cryptoKey) >= 0)
-    const isActionDisabled = !sourceText || !isTextInAlphabet(sourceText, inputAlphabet) || !isKeyValid
+        ? isDesKeyValid
+        : method === 'Гаммирование'
+            ? true
+            : isNumericKeyValid
+
+    const isGammaValid =
+        method !== 'Гаммирование' ||
+        [gammaParams.A, gammaParams.C, gammaParams.T0].every(
+            (v) => Number.isInteger(v) && v >= 0 && v < 256
+        )
+
+    const isActionDisabled =
+        !sourceText ||
+        !isTextInAlphabet(sourceText, inputAlphabet) ||
+        !isKeyValid ||
+        !isGammaValid
 
     return (
         <div className={styles.form}>
@@ -42,7 +58,7 @@ export const CryptoForm = () => {
                     <ActionButton type='decrypt' disabled={isActionDisabled} />
                 </div>
 
-                <ResultDisplay />
+                <ResultDisplay error={!isTextInAlphabet(sourceText, inputAlphabet) ? "Недопустимый символ" : ""} />
             </div>
 
             <CryptoHistory />

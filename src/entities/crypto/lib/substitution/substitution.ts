@@ -1,4 +1,4 @@
-import type { Cipher } from '../../model/types'
+import type { Cipher, CipherKey } from '../../model/types'
 
 export class SubstitutionCipher implements Cipher {
     public alphabet: string;
@@ -60,29 +60,32 @@ export class SubstitutionCipher implements Cipher {
     }
 
     // Зашифровать
-    public encrypt(plainText: string, key: number | string): string {
+    public encrypt(plainText: string, key: CipherKey): string {
         this.generateTables(+key);
         const blockSize = this.blockSize
 
         // кол-во блоков текста
         const countBlocks = Math.ceil(plainText.length / blockSize);
         const cipherBlocksArray = new Array<string>(countBlocks)
-
         // итерируемся блоками длины blockSize
-        for (let i = 0; i < countBlocks; i++) {
+        for (let i = 0; i < countBlocks - 1; i++) {
             let block = plainText.slice(i * blockSize, (i + 1) * blockSize);
-            if (i === countBlocks - 1 && block.length % blockSize) {
-                block = block.padEnd(blockSize, this.padSymbol)
-            }
-
             cipherBlocksArray[i] = this.encryptMap.get(block) ?? "";
         }
+
+        const lastStart = (countBlocks - 1) * blockSize;
+        let block = plainText.slice(lastStart, lastStart + blockSize);
+        if (block.length % blockSize) {
+            block = block.padEnd(blockSize, this.padSymbol);
+        }
+
+        cipherBlocksArray[countBlocks - 1] = this.encryptMap.get(block) ?? "";
 
         return cipherBlocksArray.join('');
     }
 
     // Дешифровать
-    public decrypt(cipherText: string, key: number | string): string {
+    public decrypt(cipherText: string, key: CipherKey): string {
         const blockSize = this.blockSize
         if (cipherText.length % blockSize) {
             throw new Error(`Длина шифртекста должна быть кратна ${blockSize}`);

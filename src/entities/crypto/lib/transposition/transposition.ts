@@ -1,4 +1,4 @@
-import type { Cipher } from '../../model/types'
+import type { Cipher, CipherKey } from '../../model/types'
 
 export class TranspositionCipher implements Cipher {
     public alphabet: string;
@@ -31,20 +31,18 @@ export class TranspositionCipher implements Cipher {
     }
 
     // Шифрование
-    public encrypt(plainText: string, cryptoKey: number | string): string {
+    public encrypt(plainText: string, cryptoKey: CipherKey): string {
         this.generateRandomPositions(+cryptoKey);
         const blockSize = this.blockSize
+        const len = plainText.length;
 
         // кол-во символов текста (с дополнением до кратного)
-        const maxLength = Math.ceil(plainText.length / blockSize) * blockSize;
+        const maxLength = Math.ceil(len / blockSize) * blockSize;
         const cipherBlocksArray = new Array<string>(maxLength)
 
         // итерируемся блоками blockSize
-        for (let i = 0; i < plainText.length; i += blockSize) {
+        for (let i = 0; i < len - blockSize; i += blockSize) {
             let block = plainText.slice(i, i + blockSize);
-            if (i + blockSize >= plainText.length && block.length % blockSize) {
-                block = block.padEnd(blockSize, this.padSymbol)
-            }
 
             for (let j = 0; j < this.blockSize; j++) {
                 // на позицию j встает символ с индекса K[j]
@@ -52,11 +50,20 @@ export class TranspositionCipher implements Cipher {
             }
         }
 
+        const lastStart = maxLength - blockSize;
+        let block = plainText.slice(lastStart, maxLength);
+        if (block.length % blockSize) {
+            block = block.padEnd(blockSize, this.padSymbol);
+        }
+        for (let j = 0; j < blockSize; j++) {
+            cipherBlocksArray[lastStart + j] = block[this.K[j]];
+        }
+
         return cipherBlocksArray.join('');
     }
 
     // Дешифрование
-    public decrypt(cipherText: string, cryptoKey: number | string): string {
+    public decrypt(cipherText: string, cryptoKey: string | number): string {
         const blockSize = this.blockSize
         if (cipherText.length % blockSize) {
             throw new Error(`Длина шифртекста должна быть кратна ${blockSize}`);

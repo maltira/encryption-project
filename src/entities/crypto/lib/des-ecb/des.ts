@@ -1,4 +1,4 @@
-import type { Cipher } from '../../model/types'
+import type { Cipher, CipherKey } from '../../model/types'
 
 // ==========================================
 // 1. КОНСТАНТЫ АЛГОРИТМА
@@ -145,122 +145,186 @@ export class DESCipher implements Cipher {
         return this.subKeys;
     }
 
+    // преобразует HEX-ключ (16 символов) в массив байт, а затем бит
     public parseHexKey(key: string): number[] {
         const bytes = new Uint8Array(8);
         for (let i = 0; i < 8; i++) {
-            bytes[i] = parseInt(key.slice(i * 2, i * 2 + 2), 16);
+            bytes[i] = parseInt(key.slice(i * 2, i * 2 + 2), 16); // числа от 0 до 255
         }
         return this.bytesToBits(bytes); // 8-байтовый массив -> 64-битный
     }
 
-    private bytesToBits(bytes: Uint8Array): number[] {
-        const bits = new Array(bytes.length * 8);
-        let index = 0;
-        for (let k = 0; k < bytes.length; k++) {
-            for (let i = 7; i >= 0; i--) {
-                bits[index++] = (bytes[k] >> i) & 1;
-            }
-        }
-        return bits;
-    }
-
-    private bitsToBytes(bits: number[]): Uint8Array {
-        const bytes = new Uint8Array(bits.length / 8);
-        for (let i = 0; i < bits.length; i += 8) {
-            let byte = 0;
-            for (let j = 0; j < 8; j++) {
-                byte = (byte << 1) | bits[i + j];
-            }
-            bytes[i / 8] = byte;
-        }
-        return bytes;
-    }
-
-    // перестановка по таблице: на позицию i встает элемент входа с номером table[i]
-    private permute(input: number[], table: number[]): number[] {
-        return table.map(pos => input[pos - 1]);
-    }
-
     public createSubKeys(key: string): number[][] {
         const keyBits = this.parseHexKey(key);
-        const permutedKey = this.permute(keyBits, PC1); // 56 бит перемешиваются по таблице PC-1
+
+        const permutedKey = new Array<number>(56);
+        this.permute(keyBits, PC1, permutedKey); // 56 бит перемешиваются по таблице PC-1
 
         let C = permutedKey.slice(0, 28);
         let D = permutedKey.slice(28, 56);
+        const CD = new Array<number>(56);
 
         const subKeys: number[][] = [];
         for (let i = 0; i < 16; i++) {
             // циклический сдвиг влево (на 1 бит в раундах 1,2,9,16 и на 2 бита во всех ост.)
             const shift = SHIFTS[i];
-            C = C.slice(shift).concat(C.slice(0, shift));
-            D = D.slice(shift).concat(D.slice(0, shift));
 
-            // полученная пара объединяется в 56-битный блок, который пропускается через PC-2
-            const CD = C.concat(D);
-            // на выходе получается раундовый ключ K из 48 бит
-            subKeys.push(this.permute(CD, PC2));
+            if (shift === 1) {
+                const c0 = C[0], d0 = D[0];
+                for (let j = 0; j < 27; j++) { C[j] = C[j + 1]; D[j] = D[j + 1]; }
+                C[27] = c0; D[27] = d0;
+            } else {
+                const c0 = C[0], c1 = C[1], d0 = D[0], d1 = D[1];
+                for (let j = 0; j < 26; j++) { C[j] = C[j + 2]; D[j] = D[j + 2]; }
+                C[26] = c0; C[27] = c1;
+                D[26] = d0; D[27] = d1;
+            }
+            // C = C.slice(shift).concat(C.slice(0, shift));
+            // D = D.slice(shift).concat(D.slice(0, shift));
+
+            // полученная пара объединяется в 56-битный блок
+            for (let j = 0; j < 28; j++) {
+                CD[j] = C[j];
+                CD[j + 28] = D[j];
+            }
+
+            // который пропускается через PC-2; на выходе получается раундовый ключ K из 48 бит
+            const roundKey = new Array<number>(48);
+            this.permute(CD, PC2, roundKey)
+            subKeys.push(roundKey);
         }
 
         return subKeys;
     }
 
-    private f(R: number[], subKey: number[]): number[] {
-        const expandedR = this.permute(R, E); // расширяем нашу правую сторону с 32 бит до 48
+
+    // каждый байт разбирается на 8 бит
+    private bytesToBits(bytes: Uint8Array): number[] {
+        const bits = new Array<number>(bytes.length * 8);
+        for (let k = 0; k < bytes.length; k++) {
+            const offset = k * 8; // базовое смещение для текущего байта
+
+            bits[offset] = (bytes[k] >> 7) & 1;
+            bits[offset + 1] = (bytes[k] >> 6) & 1;
+            bits[offset + 2] = (bytes[k] >> 5) & 1;
+            bits[offset + 3] = (bytes[k] >> 4) & 1;
+            bits[offset + 4] = (bytes[k] >> 3) & 1;
+            bits[offset + 5] = (bytes[k] >> 2) & 1;
+            bits[offset + 6] = (bytes[k] >> 1) & 1;
+            bits[offset + 7] = bytes[k] & 1;
+        }
+        return bits;
+    }
+
+    // каждые 8 бит упаковываются в 1 байт
+    private bitsToBytes(bits: number[]): Uint8Array {
+        const bytes = new Uint8Array(bits.length / 8);
+        for (let i = 0, byteIdx = 0; i < bits.length; i += 8, byteIdx++) {
+            bytes[byteIdx] =
+                (bits[i] << 7) |
+                (bits[i + 1] << 6) |
+                (bits[i + 2] << 5) |
+                (bits[i + 3] << 4) |
+                (bits[i + 4] << 3) |
+                (bits[i + 5] << 2) |
+                (bits[i + 6] << 1) |
+                bits[i + 7];
+        }
+        return bytes;
+    }
+
+    // перестановка по таблице: на позицию i встает элемент входа с номером table[i]
+    private permute(input: number[], table: number[], output: number[]) {
+        for (let i = 0; i < table.length; i++) {
+            output[i] = input[table[i] - 1]
+        }
+    }
+
+    private f(R: number[], subKey: number[], expandedR: number[], fResult: number[]) {
+        this.permute(R, E, expandedR); // расширяем нашу правую сторону с 32 бит до 48
         const xor = expandedR.map((bit, idx) => bit ^ subKey[idx]); // складываем по модулю 2 каждый бит R с соответствующим раундным ключом
-        const sOutputBits: number[] = [];
+        const sOutputBits = new Array<number>(32);
 
         // S-блоки: делим исходные 48 бит на 8 частей по 6 бит - каждая отправляется в свой S-блок (2-мерная матрица), 
         // чтобы получить из 48 бит обратно 32
         for (let i = 0; i < 8; i++) {
-            const chunk = xor.slice(i * 6, (i + 1) * 6); // нарезка на 6-битные блоки
+            const offset = i * 6; // нарезка на 6-битные блоки
 
-            const row = (chunk[0] << 1) | chunk[5]; // вычисление индекса (1-й и последний биты) строки (от 0 до 3: 00, 01, 10, 11)
-            const col = (chunk[1] << 3) | (chunk[2] << 2) | (chunk[3] << 1) | chunk[4]; // вычисление индекса столбца (средние 4 бита)
+            const row = (xor[offset] << 1) | xor[offset + 5]; // вычисление индекса (1-й и последний биты) строки (от 0 до 3: 00, 01, 10, 11)
+            const col = (xor[offset + 1] << 3) | (xor[offset + 2] << 2) | (xor[offset + 3] << 1) | xor[offset + 4]; // вычисление индекса столбца (средние 4 бита)
 
-            const val = S_BOXES[i][row][col]; // находим число на пересечении (от 0 до 15), которое можно описать ровно 4 битами
-            for (let b = 3; b >= 0; b--) {  // превращаем число в массив из 4 бит
-                sOutputBits.push((val >> b) & 1);
-            }
+            // находим число на пересечении (от 0 до 15), которое можно описать ровно 4 битами
+            const val = S_BOXES[i][row][col];
+
+            // и получаем все 4 бита числа;
+            // рассчитываем позицию относительно текущей части
+            const outOffset = i * 4;
+            // и записываем биты
+            sOutputBits[outOffset] = (val >> 3) & 1;
+            sOutputBits[outOffset + 1] = (val >> 2) & 1;
+            sOutputBits[outOffset + 2] = (val >> 1) & 1;
+            sOutputBits[outOffset + 3] = val & 1;
         }
         // на выходе в sOutputBits получается массив из 32 бит (8 блоков по 4 бита)
 
-        return this.permute(sOutputBits, P); // перемешиваем (P-box)
+        this.permute(sOutputBits, P, fResult); // перемешиваем (P-box) и записываем в fResult
     }
 
     public processBlock(blockBytes: Uint8Array, isDecrypt: boolean = false, subKeys: number[][]): Uint8Array {
         const bits = this.bytesToBits(blockBytes); // 8-байтовый блок превращается в 64-битовый блок
-        const ipBits = this.permute(bits, IP); // перестановка данных (изначальная)
+        const ipBits = new Array<number>(64);
+        this.permute(bits, IP, ipBits); // перестановка данных (изначальная)
 
         // делим блок на 2 части
-        let L = ipBits.slice(0, 32);
-        let R = ipBits.slice(32, 64);
+        let L = new Array<number>(32);
+        let R = new Array<number>(32);
+        let nextR = new Array<number>(32)
 
-        for (let round = 0; round < 16; round++) { // 16 раундов сети Фейстеля
-            const key = subKeys[isDecrypt ? 15 - round : round]; // если это дешифрование, то берем ключи в обратном порядке
+        for (let i = 0; i < 32; i++) {
+            L[i] = ipBits[i]
+            R[i] = ipBits[i + 32]
+        }
 
-            // новая L = R_(i-1)
-            const nextL = R;
+        const expandedR = new Array<number>(48);
+        const fResult = new Array<number>(32);
 
-            // а новую R высчитываем по формуле R = L_(i-1) xor f(R_(i-1), K)
-            const fResult = this.f(R, key); // f(R_(i-1), K)
-            const nextR = L.map((bit, idx) => bit ^ fResult[idx]); // каждый бит L складываем по модулю 2 с битом f
+        // 16 раундов сети Фейстеля
+        for (let round = 0; round < 16; round++) {
+            const K = subKeys[isDecrypt ? 15 - round : round]; // если это дешифрование, то берем ключи в обратном порядке
 
-            L = nextL;
-            R = nextR;
+            // новую R высчитываем по формуле R = L_(i-1) xor f(R_(i-1), K)
+            this.f(R, K, expandedR, fResult); // f(R_(i-1), K)
+            for (let i = 0; i < 32; i++) {
+                nextR[i] = L[i] ^ fResult[i];  // каждый бит L складываем по модулю 2 с битом f
+            }
+
+            // делаем что-то типа ротации указателей на массивы, чтобы не создавать
+            // лишних аллокация и работы сборщику мусора
+            const temp = L; // запоминаем старую левую часть, чтобы исключить уборку мусора, ибо на след строке L указывает уже на другую область памяти (R), а на прошлый массив никто не смотрит, поэтому там включается сборщик мусора
+            L = R;          // новая левая часть получает значения правой
+            R = nextR;      // новая правая часть получает результат XOR
+            nextR = temp;   // берем ненужный старый L как черновик на следующий раунд
+            // то есть мы бесплатно для процессора и памяти просто переиспользуем старые указатели
         }
         // получаем блоки L_16 и R_16
 
-        const preOutput = R.concat(L); // объединяем их, поменяв местами - сначала R потом L
-        const finalBits = this.permute(preOutput, IP_INV); // прогоняем через перестановку, обратную начальной (IP)
+        // объединяем их, поменяв местами (RL)
+        const preOutput = new Array<number>(64);
+        for (let i = 0; i < 32; i++) {
+            preOutput[i] = R[i];
+            preOutput[i + 32] = L[i];
+        }
+        const finalBits = new Array<number>(64);
+        this.permute(preOutput, IP_INV, finalBits);  // прогоняем через перестановку, обратную начальной (IP)
 
         return this.bitsToBytes(finalBits);
     }
 
     // Шифрование
-    public encrypt(plainText: string, key: number | string): string {
+    public encrypt(plainText: string, key: CipherKey): string {
         const encoded = new TextEncoder().encode(plainText);
 
-        // дополнение (PKCS#7) до кратности 8 байтам: сразу выделяем буфер нужной длины
+        // дополнение до кратности 8 байтам (дополняется всегда)
         const padLen = 8 - (encoded.length % 8);
         const data = new Uint8Array(encoded.length + padLen);
         data.set(encoded);
@@ -283,7 +347,7 @@ export class DESCipher implements Cipher {
     }
 
     // Дешифрование
-    public decrypt(cipherHex: string, key: number | string): string {
+    public decrypt(cipherHex: string, key: CipherKey): string {
         // 1 байт = 2 HEX-символа (по 4 бита), поэтому блок DES (8 байт) занимает 16 символов.
         // Шифртекст всегда состоит из целого числа блоков (padding до кратности 8),
         // значит длина HEX-строки должна делиться на 16

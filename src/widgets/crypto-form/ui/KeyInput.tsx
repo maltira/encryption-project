@@ -2,9 +2,44 @@ import { useCryptoStore } from '@/entities/crypto'
 import styles from './CryptoForm.module.css'
 
 export const KeyInput = () => {
-    const { method, cryptoKey, setCryptoKey } = useCryptoStore()
+    const { method, cryptoKey, setCryptoKey, gammaParams, setGammaParams } = useCryptoStore()
 
-    if (method === 'Гаммирование') return null
+    if (method === 'Гаммирование') {
+        return (
+            <div className={styles.inputForm}>
+                <p>Параметры LCG: T(i+1) = (A·T(i) + C) mod 256</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <label>
+                        A
+                        <input
+                            type='number'
+                            min={0}
+                            value={gammaParams.A}
+                            onChange={(e) => setGammaParams({ A: +e.target.value })}
+                        />
+                    </label>
+                    <label>
+                        C
+                        <input
+                            type='number'
+                            min={0}
+                            value={gammaParams.C}
+                            onChange={(e) => setGammaParams({ C: +e.target.value })}
+                        />
+                    </label>
+                    <label>
+                        T0
+                        <input
+                            type='number'
+                            min={0}
+                            value={gammaParams.T0}
+                            onChange={(e) => setGammaParams({ T0: +e.target.value })}
+                        />
+                    </label>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className={styles.inputForm}>
